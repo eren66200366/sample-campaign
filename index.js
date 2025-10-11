@@ -1,76 +1,69 @@
 import express from "express";
 import fetch from "node-fetch";
+import cors from "cors"; // CORS-middleware importeren
 
 const app = express();
 app.use(express.json());
 
-// 🔧 Jouw QLS gegevens
-const username = "info@hemnature.com";
-const password = "45ecf43b01167a15";
+// CORS inschakelen voor alle domeinen (of je kunt een specifiek domein toevoegen, zie hieronder)
+app.use(cors({ origin: "*" })); // Laat alle domeinen toe, pas aan als je alleen Shopify wilt toestaan
+
+const port = process.env.PORT || 3000; // Zet de poort in je server
+
+// Auth en configuraties
+const auth = Buffer.from("info@hemnature.com:45ecf43b01167a15").toString("base64");
 const companyId = "8837b58d-3500-43c4-9c47-995fbb3ae402";
 const brandId = "26fc7be9-e064-40f9-9463-94a928ddf828";
 const productId = "bb746875-4be7-4848-8040-2f268dd3079e";
 
-const auth = Buffer.from(`${username}:${password}`).toString("base64");
-
-// 🔹 API route voor het formulier
+// Maak een POST-endpoint voor je formulierverzoeken
 app.post("/api/sample", async (req, res) => {
+  const { name, email, street, housenumber, postalcode, city, phone } = req.body;
+
+  // Ontvanger gegevens
+  const receiver = {
+    name,
+    companyname: "-",
+    street,
+    housenumber,
+    postalcode,
+    locality: city,
+    country: "NL",
+    email,
+    phone: phone || ""
+  };
+
+  const payload = {
+    reference: `FREE-${Date.now()}`,
+    customer_reference: "Gratis Sample Doosje",
+    brand_id: brandId,
+    status: "created",
+    receiver_contact: receiver,
+    products: [{ product_id: productId, name: "GRATIS Sample Doosje", amount_ordered: 1 }]
+  };
+
+  // Maak de API-aanroep naar QLS om een sample te verzenden
   try {
-    const { name, email, street, housenumber, postalcode, city, phone } = req.body;
-
-    // ✅ Bouw de ontvanger info
-    const receiver = {
-      name,
-      companyname: "-",
-      street,
-      housenumber,
-      postalcode,
-      locality: city,
-      country: "NL",
-      email,
-      phone: phone || ""
-    };
-
-    // ✅ Payload voor QLS
-    const payload = {
-      reference: `FREE-${Date.now()}`,
-      customer_reference: "Gratis Sample Doosje",
-      brand_id: brandId,
-      status: "created",
-      receiver_contact: receiver,
-      products: [
-        {
-          product_id: productId,
-          name: "GRATIS Sample Doosje",
-          amount_ordered: 1
-        }
-      ]
-    };
-
-    const qlsRes = await fetch(`https://api.pakketdienstqls.nl/companies/${companyId}/fulfillment/orders`, {
+    const response = await fetch(`https://api.pakketdienstqls.nl/companies/${companyId}/fulfillment/orders`, {
       method: "POST",
-      headers: {
-        "Authorization": "Basic " + auth,
-        "Content-Type": "application/json"
-      },
+      headers: { "Authorization": `Basic ${auth}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
-    const text = await qlsRes.text();
+    const result = await response.json();
 
-    if (!qlsRes.ok) {
-      console.error("QLS error:", text);
-      return res.status(400).send(text);
+    if (response.ok) {
+      res.json({ message: "✅ Sample succesvol aangevraagd!", data: result });
+    } else {
+      res.status(400).json({ message: "❌ Er is iets mis gegaan.", error: result });
     }
-
-    console.log("✅ QLS order aangemaakt:", text);
-    res.status(200).send("Order succesvol aangemaakt");
   } catch (err) {
-    console.error("❌ Server error:", err);
-    res.status(500).send("Serverfout: " + err.message);
+    console.error("❌ Fout bij verzenden:", err);
+    res.status(500).json({ message: "❌ Serverfout. Probeer het later opnieuw." });
   }
 });
 
-// 🚀 Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server draait op poort ${PORT}`));
+// Start de server
+app.listen(port, () => {
+  console.log(`🚀 Server draait op http://localhost:${port}`);
+});
