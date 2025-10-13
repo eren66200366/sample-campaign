@@ -20,7 +20,8 @@ const PRODUCT_ID = "bb746875-4be7-4848-8040-2f268dd3079e";
 
 // 🔹 Klaviyo gegevens
 const KLAVIYO_PRIVATE_KEY = "pk_ef9b6c3b6f3a5d20ecb22b28a4049cda17 "; // vervang door je echte private key
-const KLAVIYO_LIST_ID = "TMW9Dd"; // jouw lijst ID
+const KLAVIYO_LIST_ID = "TMW9Dd"; // jouw list ID
+const KLAVIYO_REVISION = "2025-07-15";
 
 // POST route
 app.post('/api/sample', async (req, res) => {
@@ -53,7 +54,7 @@ app.post('/api/sample', async (req, res) => {
   };
 
   try {
-    // 🔹 QLS order aanmaken
+    // 🔹 QLS Order aanmaken
     const qlsResponse = await fetch(`https://api.pakketdienstqls.nl/companies/${COMPANY_ID}/fulfillment/orders`, {
       method: "POST",
       headers: { 
@@ -72,12 +73,12 @@ app.post('/api/sample', async (req, res) => {
       });
     }
 
-    // 🔹 Klaviyo toevoegen aan lijst
+    // 2️⃣ Klaviyo profiel toevoegen aan lijst
     const klaviyoPayload = {
       data: [
         {
           type: "profile",
-          id: email // gebruik email als unieke identifier
+          id: email
         }
       ]
     };
@@ -87,7 +88,7 @@ app.post('/api/sample', async (req, res) => {
       headers: {
         "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
         "Content-Type": "application/json",
-        "revision": "2025-07-15"
+        "revision": KLAVIYO_REVISION
       },
       body: JSON.stringify(klaviyoPayload)
     });
@@ -103,7 +104,7 @@ app.post('/api/sample', async (req, res) => {
 
     // ✅ Succes
     res.status(200).json({
-      message: "✅ Sample succesvol aangevraagd en toegevoegd aan Klaviyo!",
+      message: "✅ Sample succesvol aangevraagd en profiel toegevoegd aan Klaviyo!",
       qlsOrderId: qlsData.data?.id || null,
       klaviyoResponse: klaviyoData
     });
@@ -114,7 +115,6 @@ app.post('/api/sample', async (req, res) => {
   }
 });
 
-// Server starten
 app.listen(port, () => {
   console.log(`Server draait op http://localhost:${port}`);
 });
