@@ -19,7 +19,7 @@ const BRAND_ID = "26fc7be9-e064-40f9-9463-94a928ddf828";
 const PRODUCT_ID = "bb746875-4be7-4848-8040-2f268dd3079e";
 
 // 🔹 Klaviyo gegevens
-const KLAVIYO_PRIVATE_KEY = "pk_ef9b6c3b6f3a5d20ecb22b28a4049cda17"; // vervang door je echte private key
+const KLAVIYO_PRIVATE_KEY = "pk_ef9b6c3b6f3a5d20ecb22b28a4049cda17 "; // vervang door je echte private key
 const KLAVIYO_LIST_ID = "TMW9Dd"; // jouw list ID
 const KLAVIYO_REVISION = "2025-07-15";
 
@@ -27,7 +27,7 @@ const KLAVIYO_REVISION = "2025-07-15";
 app.post('/api/sample', async (req, res) => {
   const { name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
 
-  // 🔹 QLS payload
+  // QLS payload
   const receiver = {
     name,
     companyname: "-",
@@ -65,21 +65,18 @@ app.post('/api/sample', async (req, res) => {
     });
 
     const qlsData = await qlsResponse.json();
+
     if (!qlsResponse.ok) {
-      return res.status(400).json({ error: "Fout bij QLS order", details: qlsData.errors || qlsData });
+      return res.status(400).json({ 
+        error: "Fout bij QLS order", 
+        details: qlsData.errors || qlsData 
+      });
     }
 
-    // 2️⃣ Klaviyo toevoegen aan lijst via nieuwe endpoint
+    // 2️⃣ Klaviyo toevoegen aan lijst via Add Profiles to List
     const klaviyoPayload = {
       data: [
-        {
-          type: "profile",
-          id: email, // het profiel wordt geïdentificeerd via e-mail
-          attributes: {
-            email,
-            first_name: name
-          }
-        }
+        { type: "profile", id: email }
       ]
     };
 
@@ -94,8 +91,15 @@ app.post('/api/sample', async (req, res) => {
     });
 
     const klaviyoData = await klaviyoResponse.json();
+
     if (!klaviyoResponse.ok) {
-      return res.status(400).json({ error: "Fout bij Klaviyo toevoegen", details: klaviyoData });
+      console.warn("⚠️ Klaviyo fout:", klaviyoData);
+      // We geven de QLS-order succes terug, ook al faalt Klaviyo
+      return res.status(200).json({
+        message: "✅ Sample succesvol aangevraagd! ⚠️ Maar Klaviyo toevoegen faalde.",
+        qlsOrderId: qlsData.data?.id || null,
+        klaviyoError: klaviyoData
+      });
     }
 
     // ✅ Succes
