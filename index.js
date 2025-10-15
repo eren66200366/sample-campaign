@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
+import dotenv from 'dotenv';
+
+dotenv.config();  // Laad omgevingsvariabelen uit .env bestand
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -9,13 +12,22 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// QLS gegevens
+const QLS_AUTH = Buffer.from(`${process.env.QLS_USERNAME}:${process.env.QLS_PASSWORD}`).toString("base64");
+const COMPANY_ID = process.env.COMPANY_ID;
+const BRAND_ID = process.env.BRAND_ID;
+const PRODUCT_ID = process.env.PRODUCT_ID;
 
+// Klaviyo gegevens
+const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
+const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
+const KLAVIYO_REVISION = '2025-07-15'; // Voeg de versie van de API toe als je deze niet dynamisch wil ophalen
 
 // POST route
 app.post('/api/sample', async (req, res) => {
   const { name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
 
-  // 🔹 QLS payload
+  // QLS payload
   const receiver = {
     name,
     companyname: "-",
@@ -61,7 +73,7 @@ app.post('/api/sample', async (req, res) => {
       });
     }
 
-    // 🔹 Klaviyo payload (nieuw endpoint)
+    // 2️⃣ Klaviyo payload
     const klaviyoPayload = {
       data: [
         {
@@ -109,4 +121,3 @@ app.post('/api/sample', async (req, res) => {
 app.listen(port, () => {
   console.log(`Server draait op http://localhost:${port}`);
 });
-
