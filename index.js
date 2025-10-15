@@ -1,9 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
-import dotenv from 'dotenv'; // Om .env te laden
+import dotenv from 'dotenv';
 
-// Laad de environment variabelen uit de .env bestand
 dotenv.config();
 
 const app = express();
@@ -14,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // QLS gegevens
-const QLS_USERNAME = process.env.QLS_USERNAME;  
+const QLS_USERNAME = process.env.QLS_USERNAME;
 const QLS_PASSWORD = process.env.QLS_PASSWORD;
 const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64");
 
@@ -25,8 +24,6 @@ const PRODUCT_ID = process.env.PRODUCT_ID;
 // Klaviyo gegevens
 const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
 const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
-
-console.log("QLS Authentication details set...");
 
 // POST route
 app.post('/api/sample', async (req, res) => {
@@ -74,7 +71,6 @@ app.post('/api/sample', async (req, res) => {
 
     const qlsData = await qlsResponse.json();
 
-    // Log de response van QLS
     console.log("QLS Response Status:", qlsResponse.status);
     console.log("QLS Response Data:", JSON.stringify(qlsData, null, 2));
 
@@ -89,7 +85,7 @@ app.post('/api/sample', async (req, res) => {
     // ✅ Succesvolle QLS-order
     console.log("QLS Order ID:", qlsData.data?.id);
 
-    // 2️⃣ Klaviyo toevoegen aan lijst (We maken een profiel aan)
+    // 2️⃣ Klaviyo payload
     const klaviyoPayload = {
       data: [
         {
@@ -110,19 +106,21 @@ app.post('/api/sample', async (req, res) => {
     console.log("Sending Klaviyo Profile request...");
     console.log("Klaviyo Payload:", JSON.stringify(klaviyoPayload, null, 2));
 
+    // Debugging: Log de private key om te controleren of deze geladen wordt
+    console.log("Klaviyo Private Key:", KLAVIYO_PRIVATE_KEY);
+
     const klaviyoResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
       method: "POST",
       headers: {
         "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
         "Content-Type": "application/json",
-        "Revision": "2025-07-15" // API versie specificeren
+        "Revision": "2025-07-15" // API versie
       },
       body: JSON.stringify(klaviyoPayload)
     });
 
     const klaviyoData = await klaviyoResponse.json();
 
-    // Log de response van Klaviyo
     console.log("Klaviyo Response Status:", klaviyoResponse.status);
     console.log("Klaviyo Response Data:", JSON.stringify(klaviyoData, null, 2));
 
