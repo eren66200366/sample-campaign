@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 // QLS gegevens
-const QLS_USERNAME = process.env.QLS_USERNAME;  // Zorg ervoor dat de env variabelen goed zijn ingesteld
+const QLS_USERNAME = process.env.QLS_USERNAME;  
 const QLS_PASSWORD = process.env.QLS_PASSWORD;
 const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64");
 
@@ -121,6 +121,10 @@ app.post('/api/sample', async (req, res) => {
     });
 
     const klaviyoData = await klaviyoResponse.json();
+
+    // Log de response van Klaviyo
+    console.log("Klaviyo Response Status:", klaviyoResponse.status);
+    console.log("Klaviyo Response Data:", JSON.stringify(klaviyoData, null, 2));
 
     if (!klaviyoResponse.ok) {
       console.error("Klaviyo Error:", klaviyoData);
