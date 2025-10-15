@@ -9,19 +9,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// 🔹 QLS gegevens
-const QLS_USERNAME = "info@hemnature.com";
-const QLS_PASSWORD = "45ecf43b01167a15";
-const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64");
 
-const COMPANY_ID = "8837b58d-3500-43c4-9c47-995fbb3ae402";
-const BRAND_ID = "26fc7be9-e064-40f9-9463-94a928ddf828";
-const PRODUCT_ID = "bb746875-4be7-4848-8040-2f268dd3079e";
-
-// 🔹 Klaviyo gegevens
-const KLAVIYO_PRIVATE_KEY = "pk_ef9b6c3b6f3a5d20ecb22b28a4049cda17"; // vervang door je echte private key
-const KLAVIYO_LIST_ID = "TMW9Dd"; // jouw list ID
-const KLAVIYO_REVISION = "2025-07-15";
 
 // POST route
 app.post('/api/sample', async (req, res) => {
@@ -121,3 +109,4 @@ app.post('/api/sample', async (req, res) => {
 app.listen(port, () => {
   console.log(`Server draait op http://localhost:${port}`);
 });
+
