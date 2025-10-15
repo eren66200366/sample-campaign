@@ -3,6 +3,7 @@ import cors from 'cors';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 
+// Laad de .env-bestand
 dotenv.config();
 
 const app = express();
@@ -12,7 +13,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// QLS gegevens
+// 🔹 QLS gegevens
 const QLS_USERNAME = process.env.QLS_USERNAME;
 const QLS_PASSWORD = process.env.QLS_PASSWORD;
 const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64");
@@ -21,15 +22,18 @@ const COMPANY_ID = process.env.COMPANY_ID;
 const BRAND_ID = process.env.BRAND_ID;
 const PRODUCT_ID = process.env.PRODUCT_ID;
 
-// Klaviyo gegevens
+// 🔹 Klaviyo gegevens
 const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
 const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
+const KLAVIYO_REVISION = "2025-07-15";  // De versie die je nodig hebt
 
 // POST route
 app.post('/api/sample', async (req, res) => {
   const { name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
 
-  // QLS payload
+  console.log("Received Data:", req.body);  // Log de ontvangen data voor debugging
+
+  // 1️⃣ QLS Order Payload
   const receiver = {
     name,
     companyname: "-",
@@ -55,11 +59,11 @@ app.post('/api/sample', async (req, res) => {
     }]
   };
 
-  console.log("Sending QLS Order request...");
-  console.log("QLS Payload:", JSON.stringify(qlsPayload, null, 2));
+  console.log("QLS Payload:", JSON.stringify(qlsPayload, null, 2)); // Debuggen van QLS payload
 
   try {
-    // 1️⃣ QLS Order
+    // 1️⃣ QLS Order request
+    console.log("Sending QLS Order request...");
     const qlsResponse = await fetch(`https://api.pakketdienstqls.nl/companies/${COMPANY_ID}/fulfillment/orders`, {
       method: "POST",
       headers: { 
@@ -70,27 +74,22 @@ app.post('/api/sample', async (req, res) => {
     });
 
     const qlsData = await qlsResponse.json();
-
     console.log("QLS Response Status:", qlsResponse.status);
     console.log("QLS Response Data:", JSON.stringify(qlsData, null, 2));
 
     if (!qlsResponse.ok) {
-      console.error("QLS Order Error:", qlsData.errors || qlsData);
       return res.status(400).json({ 
         error: "Fout bij QLS order", 
         details: qlsData.errors || qlsData 
       });
     }
 
-    // ✅ Succesvolle QLS-order
-    console.log("QLS Order ID:", qlsData.data?.id);
-
-    // 2️⃣ Klaviyo payload
-    const klaviyoPayload = {
+    // 2️⃣ Klaviyo Profile Payload
+    const profilePayload = {
       data: [
         {
           type: "profile",
-          id: email,
+          id: email,  // Gebruik email als unieke ID
           attributes: {
             first_name: name,
             email: email,
@@ -103,52 +102,76 @@ app.post('/api/sample', async (req, res) => {
       ]
     };
 
+    console.log("Klaviyo Profile Payload:", JSON.stringify(profilePayload, null, 2));
+
+    // 2️⃣ Klaviyo Profile request
     console.log("Sending Klaviyo Profile request...");
-    console.log("Klaviyo Payload:", JSON.stringify(klaviyoPayload, null, 2));
-
-    // Debugging: Log de private key om te controleren of deze geladen wordt
-    console.log("Klaviyo Private Key:", KLAVIYO_PRIVATE_KEY);
-
-    const klaviyoResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
-      method: "POST",
+    const klaviyoResponse = await fetch('https://a.klaviyo.com/api/profiles/', {
+      method: 'POST',
       headers: {
         "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
         "Content-Type": "application/json",
-        "Revision": "2025-07-15" // API versie
+        "Revision": KLAVIYO_REVISION
       },
-      body: JSON.stringify(klaviyoPayload)
+      body: JSON.stringify(profilePayload)
     });
 
     const klaviyoData = await klaviyoResponse.json();
-
     console.log("Klaviyo Response Status:", klaviyoResponse.status);
     console.log("Klaviyo Response Data:", JSON.stringify(klaviyoData, null, 2));
 
     if (!klaviyoResponse.ok) {
-      console.error("Klaviyo Error:", klaviyoData);
-      return res.status(400).json({ 
-        error: "Fout bij Klaviyo toevoegen", 
-        details: klaviyoData 
+      return res.status(400).json({
+        error: "Fout bij het toevoegen van het profiel aan Klaviyo",
+        details: klaviyoData.errors || klaviyoData
       });
     }
 
-    // ✅ Succesvolle Klaviyo update
-    console.log("Klaviyo Response:", JSON.stringify(klaviyoData, null, 2));
+    // 3️⃣ Voeg profiel toe aan Klaviyo lijst
+    const listPayload = {
+      data: [
+        {
+          type: "profile",
+          id: email  // Voeg het profiel toe met de email als profiel-ID
+        }
+      ]
+    };
 
-    // Succes reactie teruggeven aan frontend
+    console.log("Sending Klaviyo List request...");
+    const listResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
+      method: 'POST',
+      headers: {
+        "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
+        "Content-Type": "application/json",
+        "Revision": KLAVIYO_REVISION
+      },
+      body: JSON.stringify(listPayload)
+    });
+
+    const listData = await listResponse.json();
+    console.log("Klaviyo List Response Status:", listResponse.status);
+    console.log("Klaviyo List Response Data:", JSON.stringify(listData, null, 2));
+
+    if (!listResponse.ok) {
+      return res.status(400).json({
+        error: "Fout bij het toevoegen van het profiel aan de Klaviyo lijst",
+        details: listData.errors || listData
+      });
+    }
+
+    // ✅ Succes
     res.status(200).json({
-      message: "✅ Sample succesvol aangevraagd en toegevoegd aan Klaviyo!",
+      message: "✅ Sample succesvol aangevraagd en profiel toegevoegd aan Klaviyo lijst!",
       qlsOrderId: qlsData.data?.id || null,
-      klaviyoResponse: klaviyoData
+      klaviyoResponse: listData
     });
 
   } catch (error) {
-    console.error("Server Error:", error);
+    console.error("Fout:", error);
     res.status(500).json({ error: "❌ Serverfout bij het verwerken van de aanvraag" });
   }
 });
 
-// Start de server
 app.listen(port, () => {
   console.log(`Server draait op http://localhost:${port}`);
 });
