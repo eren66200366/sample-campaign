@@ -84,7 +84,8 @@ app.post('/api/sample', async (req, res) => {
           street_address: street,
           city: city,
           postal_code: postalcode,
-          country: "NL"
+          country: "NL",
+          // Optional fields can be added here, for example, organization, title, etc.
         }
       }
     };
