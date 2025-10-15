@@ -3,7 +3,7 @@ import cors from 'cors';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config(); // Zorgt ervoor dat de environment variables beschikbaar zijn
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,18 +12,24 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Klaviyo gegevens uit .env
-const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
-const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
+// QLS Configuratie
+const QLS_USERNAME = process.env.QLS_USERNAME;
+const QLS_PASSWORD = process.env.QLS_PASSWORD;
+const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64");
+
 const COMPANY_ID = process.env.COMPANY_ID;
-const BRAND_ID = process.env.BRAND_ID;  // BRAND_ID moet hier vandaan komen
+const BRAND_ID = process.env.BRAND_ID;
 const PRODUCT_ID = process.env.PRODUCT_ID;
 
-// POST route voor het aanmaken van een profiel en QLS order
-app.post('/api/sample', async (req, res) => {
-  const { name, last_name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
+// Klaviyo Configuratie
+const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
+const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
 
-  // 🔹 QLS Payload
+// POST route voor het verwerken van een aanvraag
+app.post('/api/sample', async (req, res) => {
+  const { name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
+
+  // QLS Payload voor orderaanmaak
   const receiver = {
     name,
     companyname: "-",
@@ -39,7 +45,7 @@ app.post('/api/sample', async (req, res) => {
   const qlsPayload = {
     reference: `FREE-${Date.now()}`,
     customer_reference: "Gratis Sample Doosje",
-    brand_id: BRAND_ID,  // Zorg ervoor dat dit aanwezig is
+    brand_id: BRAND_ID,
     status: "created",
     receiver_contact: receiver,
     products: [{ 
@@ -50,12 +56,12 @@ app.post('/api/sample', async (req, res) => {
   };
 
   try {
-    // 1️⃣ QLS Order
+    // 1️⃣ Verzend QLS order
     console.log("Sending QLS Order request...");
     const qlsResponse = await fetch(`https://api.pakketdienstqls.nl/companies/${COMPANY_ID}/fulfillment/orders`, {
       method: "POST",
       headers: { 
-        "Authorization": `Basic ${Buffer.from(process.env.QLS_USERNAME + ":" + process.env.QLS_PASSWORD).toString("base64")}`, 
+        "Authorization": `Basic ${QLS_AUTH}`, 
         "Content-Type": "application/json" 
       },
       body: JSON.stringify(qlsPayload)
@@ -63,7 +69,7 @@ app.post('/api/sample', async (req, res) => {
 
     const qlsData = await qlsResponse.json();
     console.log("QLS Response Status:", qlsResponse.status);
-    console.log("QLS Response Data:", JSON.stringify(qlsData, null, 2));
+    console.log("QLS Response Data:", qlsData);
 
     if (!qlsResponse.ok) {
       return res.status(400).json({ 
@@ -72,52 +78,78 @@ app.post('/api/sample', async (req, res) => {
       });
     }
 
-    // 🔹 Klaviyo Payload - volgens de Klaviyo API specificaties
+    // 2️⃣ Maak Klaviyo profiel aan
+    console.log("Sending Klaviyo Profile request...");
     const klaviyoPayload = {
       data: {
         type: "profile",
-        id: email,  // Gebruik email als profiel ID
         attributes: {
-          first_name: name,
-          last_name: last_name, // Voeg last_name toe
           email: email,
+          first_name: name,
           phone_number: phone,
           street_address: street,
           city: city,
           postal_code: postalcode,
-          country: "NL",
-          // Optional fields can be added here, for example, organization, title, etc.
+          country: "NL"
         }
       }
     };
 
-    console.log("Sending Klaviyo Profile request...");
     const klaviyoResponse = await fetch(`https://a.klaviyo.com/api/profiles/`, {
       method: "POST",
       headers: {
         "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
-        "Content-Type": "application/json",
-        "Revision": "2025-07-15"
+        "Content-Type": "application/json"
       },
       body: JSON.stringify(klaviyoPayload)
     });
 
     const klaviyoData = await klaviyoResponse.json();
     console.log("Klaviyo Response Status:", klaviyoResponse.status);
-    console.log("Klaviyo Response Data:", JSON.stringify(klaviyoData, null, 2));
+    console.log("Klaviyo Response Data:", klaviyoData);
 
     if (!klaviyoResponse.ok) {
-      return res.status(400).json({ 
-        error: "Fout bij Klaviyo toevoegen", 
-        details: klaviyoData.errors || klaviyoData 
+      return res.status(400).json({
+        error: "Fout bij Klaviyo profiel aanmaken",
+        details: klaviyoData.errors || klaviyoData
       });
     }
 
-    // ✅ Succes
+    // 3️⃣ Voeg het profiel toe aan de Klaviyo lijst
+    const klaviyoListPayload = {
+      data: [
+        {
+          type: "profile",
+          id: klaviyoData.data.id
+        }
+      ]
+    };
+
+    const addToListResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(klaviyoListPayload)
+    });
+
+    const addToListData = await addToListResponse.json();
+    console.log("Add to Klaviyo List Response:", addToListResponse.status);
+    console.log("Add to Klaviyo List Data:", addToListData);
+
+    if (!addToListResponse.ok) {
+      return res.status(400).json({
+        error: "Fout bij het toevoegen van het profiel aan Klaviyo lijst",
+        details: addToListData.errors || addToListData
+      });
+    }
+
+    // ✅ Succesvolle aanvraag
     res.status(200).json({
       message: "✅ Sample succesvol aangevraagd en toegevoegd aan Klaviyo!",
       qlsOrderId: qlsData.data?.id || null,
-      klaviyoResponse: klaviyoData
+      klaviyoResponse: addToListData
     });
 
   } catch (error) {
