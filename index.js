@@ -76,8 +76,47 @@ app.post('/api/sample', async (req, res) => {
     console.log('Klaviyo Response Status:', klaviyoResponse.status);
     console.log('Klaviyo Response Data:', JSON.stringify(klaviyoData, null, 2));
 
-    // Nu we een succesvol profiel hebben aangemaakt in Klaviyo, gaan we verder met de QLS aanvraag
-    // 🔹 QLS payload
+    // Nu we een succesvol profiel hebben aangemaakt in Klaviyo, voegen we het toe aan de lijst
+    const profileId = klaviyoData.data.id; // Haal het profiel ID uit de response
+
+    // 🔹 Voeg het profiel toe aan de lijst
+    const klaviyoListPayload = {
+      data: [
+        {
+          type: "list",
+          id: KLAVIYO_LIST_ID
+        }
+      ]
+    };
+
+    const addToListResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
+        "Content-Type": "application/json",
+        "Revision": "2025-07-15"
+      },
+      body: JSON.stringify({
+        data: [{
+          type: "profile",
+          id: profileId // Voeg het profiel ID toe aan de lijst
+        }]
+      })
+    });
+
+    const addToListData = await addToListResponse.json();
+
+    if (!addToListResponse.ok) {
+      console.error('Klaviyo List Add Error:', addToListData);
+      return res.status(400).json({
+        error: "Fout bij het toevoegen aan Klaviyo lijst",
+        details: addToListData
+      });
+    }
+
+    console.log('Profile successfully added to Klaviyo list:', addToListData);
+
+    // Nu kunnen we doorgaan met de QLS-order
     const receiver = {
       name,
       companyname: "-",
@@ -133,7 +172,7 @@ app.post('/api/sample', async (req, res) => {
     res.status(200).json({
       message: "✅ Sample succesvol aangevraagd en toegevoegd aan Klaviyo!",
       qlsOrderId: qlsData.data?.id || null,
-      klaviyoResponse: klaviyoData
+      klaviyoResponse: addToListData
     });
 
   } catch (error) {
