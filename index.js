@@ -9,8 +9,15 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
+// Enable CORS for all origins or specify allowed origins
+const corsOptions = {
+  origin: '*',  // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],  // Allowed HTTP methods
+  allowedHeaders: ['Content-Type', 'Authorization'],  // Allowed headers
+};
+
+app.use(cors(corsOptions));  // Apply CORS middleware
+
 app.use(express.json());
 
 // Klaviyo credentials from environment variables
