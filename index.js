@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
-import dotenv from 'dotenv'; // Import dotenv
+import dotenv from 'dotenv'; // Om .env te laden
 
 // Laad de environment variabelen uit de .env bestand
 dotenv.config();
@@ -21,6 +21,10 @@ const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64
 const COMPANY_ID = process.env.COMPANY_ID;
 const BRAND_ID = process.env.BRAND_ID;
 const PRODUCT_ID = process.env.PRODUCT_ID;
+
+// Klaviyo gegevens
+const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
+const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
 
 console.log("QLS Authentication details set...");
 
@@ -85,10 +89,55 @@ app.post('/api/sample', async (req, res) => {
     // ✅ Succesvolle QLS-order
     console.log("QLS Order ID:", qlsData.data?.id);
 
-    // ✅ Succesvolle aanvraag
+    // 2️⃣ Klaviyo toevoegen aan lijst (We maken een profiel aan)
+    const klaviyoPayload = {
+      data: [
+        {
+          type: "profile",
+          id: email,
+          attributes: {
+            first_name: name,
+            email: email,
+            phone_number: phone,
+            street_address: street,
+            city: city,
+            postal_code: postalcode
+          }
+        }
+      ]
+    };
+
+    console.log("Sending Klaviyo Profile request...");
+    console.log("Klaviyo Payload:", JSON.stringify(klaviyoPayload, null, 2));
+
+    const klaviyoResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
+        "Content-Type": "application/json",
+        "Revision": "2025-07-15" // API versie specificeren
+      },
+      body: JSON.stringify(klaviyoPayload)
+    });
+
+    const klaviyoData = await klaviyoResponse.json();
+
+    if (!klaviyoResponse.ok) {
+      console.error("Klaviyo Error:", klaviyoData);
+      return res.status(400).json({ 
+        error: "Fout bij Klaviyo toevoegen", 
+        details: klaviyoData 
+      });
+    }
+
+    // ✅ Succesvolle Klaviyo update
+    console.log("Klaviyo Response:", JSON.stringify(klaviyoData, null, 2));
+
+    // Succes reactie teruggeven aan frontend
     res.status(200).json({
-      message: "✅ Sample succesvol aangevraagd!",
+      message: "✅ Sample succesvol aangevraagd en toegevoegd aan Klaviyo!",
       qlsOrderId: qlsData.data?.id || null,
+      klaviyoResponse: klaviyoData
     });
 
   } catch (error) {
