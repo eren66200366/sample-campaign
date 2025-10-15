@@ -16,7 +16,7 @@ app.use(express.json());
 const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
 const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
 const COMPANY_ID = process.env.COMPANY_ID;
-const BRAND_ID = process.env.BRAND_ID;
+const BRAND_ID = process.env.BRAND_ID;  // BRAND_ID moet hier vandaan komen
 const PRODUCT_ID = process.env.PRODUCT_ID;
 
 // POST route voor het aanmaken van een profiel en QLS order
@@ -39,6 +39,7 @@ app.post('/api/sample', async (req, res) => {
   const qlsPayload = {
     reference: `FREE-${Date.now()}`,
     customer_reference: "Gratis Sample Doosje",
+    brand_id: BRAND_ID,  // Zorg ervoor dat dit aanwezig is
     status: "created",
     receiver_contact: receiver,
     products: [{ 
