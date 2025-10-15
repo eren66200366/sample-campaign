@@ -58,8 +58,11 @@ app.post('/api/sample', async (req, res) => {
     const klaviyoResponseText = await klaviyoResponse.text();
     console.log("Raw Klaviyo Response Text:", klaviyoResponseText);
 
-    // Check if the response is empty or not valid JSON
-    if (klaviyoResponseText && klaviyoResponseText !== '') {
+    // Skip empty response or invalid response
+    if (klaviyoResponseText.trim() === '') {
+      console.log("Empty response from Klaviyo, skipping profile addition to list.");
+    } else {
+      // Parse the response only if it's not empty
       const klaviyoData = JSON.parse(klaviyoResponseText);
 
       if (!klaviyoResponse.ok) {
@@ -73,108 +76,100 @@ app.post('/api/sample', async (req, res) => {
       const profileId = klaviyoData.data.id;
       console.log('Klaviyo Profile Created:', profileId);
 
-      // Step 2: Add the Profile to a Klaviyo List
-      const klaviyoListPayload = {
-        data: [
-          {
-            type: "profile",
-            id: profileId // Add the profile ID to the list
+      // Step 2: Add the Profile to a Klaviyo List (if profile created)
+      if (profileId) {
+        const klaviyoListPayload = {
+          data: [
+            {
+              type: "profile",
+              id: profileId // Add the profile ID to the list
+            }
+          ]
+        };
+
+        console.log('Sending Klaviyo List Add request...');
+        const addToListResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
+            "Content-Type": "application/json",
+            "Revision": "2025-07-15"
+          },
+          body: JSON.stringify(klaviyoListPayload)
+        });
+
+        const addToListResponseText = await addToListResponse.text();
+        console.log("Raw Add to List Response Text:", addToListResponseText);
+
+        // Check if the response is not empty, parse it
+        if (addToListResponseText.trim() !== '') {
+          const addToListData = JSON.parse(addToListResponseText);
+          if (!addToListResponse.ok) {
+            console.error('Klaviyo List Add Error:', addToListData);
+            return res.status(400).json({
+              error: "Fout bij het toevoegen aan Klaviyo lijst",
+              details: addToListData
+            });
           }
-        ]
-      };
-
-      console.log('Sending Klaviyo List Add request...');
-      const addToListResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
-          "Content-Type": "application/json",
-          "Revision": "2025-07-15"
-        },
-        body: JSON.stringify(klaviyoListPayload)
-      });
-
-      const addToListResponseText = await addToListResponse.text();
-      console.log("Raw Add to List Response Text:", addToListResponseText);
-
-      // If the response is empty, handle the error
-      if (!addToListResponseText || addToListResponseText.trim() === '') {
-        console.error("Empty response when adding profile to list");
-        return res.status(400).json({ error: "Empty response when adding profile to list" });
+          console.log('Profile successfully added to Klaviyo list:', addToListData);
+        }
       }
-
-      const addToListData = JSON.parse(addToListResponseText);
-
-      if (!addToListResponse.ok) {
-        console.error('Klaviyo List Add Error:', addToListData);
-        return res.status(400).json({
-          error: "Fout bij het toevoegen aan Klaviyo lijst",
-          details: addToListData
-        });
-      }
-
-      console.log('Profile successfully added to Klaviyo list:', addToListData);
-
-      // Proceed with QLS order
-      const receiver = {
-        name,
-        companyname: "-",
-        street,
-        housenumber,
-        postalcode,
-        locality: city,
-        country: "NL",
-        email,
-        phone
-      };
-
-      const qlsPayload = {
-        reference: `FREE-${Date.now()}`,
-        customer_reference: "Gratis Sample Doosje",
-        brand_id: BRAND_ID,
-        status: "created",
-        receiver_contact: receiver,
-        products: [{ 
-          product_id: PRODUCT_ID, 
-          name: "GRATIS Sample Doosje", 
-          amount_ordered: 1 
-        }]
-      };
-
-      console.log('Sending QLS Order request...');
-      const qlsResponse = await fetch(`https://api.pakketdienstqls.nl/companies/${COMPANY_ID}/fulfillment/orders`, {
-        method: "POST",
-        headers: { 
-          "Authorization": `Basic ${QLS_AUTH}`, 
-          "Content-Type": "application/json" 
-        },
-        body: JSON.stringify(qlsPayload)
-      });
-
-      const qlsData = await qlsResponse.json();
-
-      if (!qlsResponse.ok) {
-        console.error('QLS Response Error:', qlsData);
-        return res.status(400).json({ 
-          error: "Fout bij QLS order", 
-          details: qlsData.errors || qlsData 
-        });
-      }
-
-      console.log('QLS Response Status:', qlsResponse.status);
-      console.log('QLS Response Data:', JSON.stringify(qlsData, null, 2));
-
-      // ✅ Succes
-      res.status(200).json({
-        message: "✅ Sample succesvol aangevraagd, toegevoegd aan Klaviyo en QLS!",
-        klaviyoResponse: addToListData,
-        qlsOrderId: qlsData.data.id
-      });
-
-    } else {
-      console.error('Empty or invalid response from Klaviyo');
-      return res.status(400).json({ error: "Empty or invalid response from Klaviyo" });
     }
+
+    // Step 3: Proceed with QLS Order
+    const receiver = {
+      name,
+      companyname: "-",
+      street,
+      housenumber,
+      postalcode,
+      locality: city,
+      country: "NL",
+      email,
+      phone
+    };
+
+    const qlsPayload = {
+      reference: `FREE-${Date.now()}`,
+      customer_reference: "Gratis Sample Doosje",
+      brand_id: BRAND_ID,
+      status: "created",
+      receiver_contact: receiver,
+      products: [{ 
+        product_id: PRODUCT_ID, 
+        name: "GRATIS Sample Doosje", 
+        amount_ordered: 1 
+      }]
+    };
+
+    console.log('Sending QLS Order request...');
+    const qlsResponse = await fetch(`https://api.pakketdienstqls.nl/companies/${COMPANY_ID}/fulfillment/orders`, {
+      method: "POST",
+      headers: { 
+        "Authorization": `Basic ${QLS_AUTH}`, 
+        "Content-Type": "application/json" 
+      },
+      body: JSON.stringify(qlsPayload)
+    });
+
+    const qlsData = await qlsResponse.json();
+
+    if (!qlsResponse.ok) {
+      console.error('QLS Response Error:', qlsData);
+      return res.status(400).json({ 
+        error: "Fout bij QLS order", 
+        details: qlsData.errors || qlsData 
+      });
+    }
+
+    console.log('QLS Response Status:', qlsResponse.status);
+    console.log('QLS Response Data:', JSON.stringify(qlsData, null, 2));
+
+    // ✅ Succes
+    res.status(200).json({
+      message: "✅ Sample succesvol aangevraagd, toegevoegd aan Klaviyo en QLS!",
+      qlsOrderId: qlsData.data.id
+    });
 
   } catch (error) {
     console.error('Error:', error);
