@@ -63,7 +63,12 @@ app.post('/api/sample', async (req, res) => {
       body: JSON.stringify(klaviyoPayload)
     });
 
-    const klaviyoData = await klaviyoResponse.json();
+    // Log de ruwe response voor debugging
+    const klaviyoResponseText = await klaviyoResponse.text();
+    console.log("Raw Klaviyo Response Text:", klaviyoResponseText);
+
+    // Probeer de JSON te parsen
+    const klaviyoData = JSON.parse(klaviyoResponseText);
 
     if (!klaviyoResponse.ok) {
       console.error('Klaviyo Response Error:', klaviyoData);
@@ -83,11 +88,14 @@ app.post('/api/sample', async (req, res) => {
     const klaviyoListPayload = {
       data: [
         {
-          type: "list",
-          id: KLAVIYO_LIST_ID
+          type: "profile",
+          id: profileId // Voeg het profiel ID toe aan de lijst
         }
       ]
     };
+
+    console.log('Sending Klaviyo List Add request...');
+    console.log('Klaviyo List Payload:', JSON.stringify(klaviyoListPayload, null, 2));
 
     const addToListResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles`, {
       method: "POST",
