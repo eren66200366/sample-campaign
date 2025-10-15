@@ -12,22 +12,16 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// QLS gegevens uit .env
-const QLS_USERNAME = process.env.QLS_USERNAME;
-const QLS_PASSWORD = process.env.QLS_PASSWORD;
-const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64");
-
+// Klaviyo gegevens uit .env
+const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
+const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
 const COMPANY_ID = process.env.COMPANY_ID;
 const BRAND_ID = process.env.BRAND_ID;
 const PRODUCT_ID = process.env.PRODUCT_ID;
 
-// Klaviyo gegevens uit .env
-const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
-const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
-
-// POST route voor het aanmaken van een fulfillment order en Klaviyo profiel
+// POST route voor het aanmaken van een profiel en QLS order
 app.post('/api/sample', async (req, res) => {
-  const { name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
+  const { name, last_name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
 
   // 🔹 QLS Payload
   const receiver = {
@@ -45,7 +39,6 @@ app.post('/api/sample', async (req, res) => {
   const qlsPayload = {
     reference: `FREE-${Date.now()}`,
     customer_reference: "Gratis Sample Doosje",
-    brand_id: BRAND_ID,
     status: "created",
     receiver_contact: receiver,
     products: [{ 
@@ -58,12 +51,10 @@ app.post('/api/sample', async (req, res) => {
   try {
     // 1️⃣ QLS Order
     console.log("Sending QLS Order request...");
-    console.log("QLS Payload:", JSON.stringify(qlsPayload, null, 2));
-
     const qlsResponse = await fetch(`https://api.pakketdienstqls.nl/companies/${COMPANY_ID}/fulfillment/orders`, {
       method: "POST",
       headers: { 
-        "Authorization": `Basic ${QLS_AUTH}`, 
+        "Authorization": `Basic ${Buffer.from(process.env.QLS_USERNAME + ":" + process.env.QLS_PASSWORD).toString("base64")}`, 
         "Content-Type": "application/json" 
       },
       body: JSON.stringify(qlsPayload)
@@ -80,25 +71,25 @@ app.post('/api/sample', async (req, res) => {
       });
     }
 
-    // 🔹 Klaviyo Payload
+    // 🔹 Klaviyo Payload - volgens de Klaviyo API specificaties
     const klaviyoPayload = {
-      "data": {
-        "type": "profile",
-        "id": email, // Gebruik email als profiel ID
-        "attributes": {
-          "first_name": name,
-          "email": email,
-          "phone_number": phone,
-          "street_address": street,
-          "city": city,
-          "postal_code": postalcode
+      data: {
+        type: "profile",
+        id: email,  // Gebruik email als profiel ID
+        attributes: {
+          first_name: name,
+          last_name: last_name, // Voeg last_name toe
+          email: email,
+          phone_number: phone,
+          street_address: street,
+          city: city,
+          postal_code: postalcode,
+          country: "NL"
         }
       }
     };
 
     console.log("Sending Klaviyo Profile request...");
-    console.log("Klaviyo Payload:", JSON.stringify(klaviyoPayload, null, 2));
-
     const klaviyoResponse = await fetch(`https://a.klaviyo.com/api/profiles/`, {
       method: "POST",
       headers: {
