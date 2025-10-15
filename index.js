@@ -3,7 +3,7 @@ import cors from 'cors';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 
-// Laad de environment variables
+// Laad de environment variabelen uit .env bestand
 dotenv.config();
 
 const app = express();
@@ -20,7 +20,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json()); // Om JSON-lichaam te kunnen parsen
 
-// QLS en Klaviyo variabelen uit .env bestand halen
+// Klaviyo en QLS variabelen uit .env bestand halen
 const QLS_USERNAME = process.env.QLS_USERNAME;
 const QLS_PASSWORD = process.env.QLS_PASSWORD;
 const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64");
@@ -36,75 +36,20 @@ const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
 app.post('/api/sample', async (req, res) => {
   const { name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
 
-  // 🔹 QLS payload
-  const receiver = {
-    name,
-    companyname: "-",
-    street,
-    housenumber,
-    postalcode,
-    locality: city,
-    country: "NL",
-    email,
-    phone
-  };
-
-  const qlsPayload = {
-    reference: `FREE-${Date.now()}`,
-    customer_reference: "Gratis Sample Doosje",
-    brand_id: BRAND_ID,
-    status: "created",
-    receiver_contact: receiver,
-    products: [{ 
-      product_id: PRODUCT_ID, 
-      name: "GRATIS Sample Doosje", 
-      amount_ordered: 1 
-    }]
+  // 🔹 Klaviyo profiel aanmaken en toevoegen aan lijst
+  const klaviyoPayload = {
+    data: {
+      type: "profile", // Correcte type
+      attributes: {
+        first_name: name,
+        email: email,
+        phone_number: phone,
+        external_id: email, // Gebruik email als external_id
+      }
+    }
   };
 
   try {
-    console.log('Sending QLS Order request...');
-    console.log('QLS Payload:', JSON.stringify(qlsPayload, null, 2));
-
-    // 1️⃣ QLS Order
-    const qlsResponse = await fetch(`https://api.pakketdienstqls.nl/companies/${COMPANY_ID}/fulfillment/orders`, {
-      method: "POST",
-      headers: { 
-        "Authorization": `Basic ${QLS_AUTH}`, 
-        "Content-Type": "application/json" 
-      },
-      body: JSON.stringify(qlsPayload)
-    });
-
-    const qlsData = await qlsResponse.json();
-
-    if (!qlsResponse.ok) {
-      console.error('QLS Response Error:', qlsData);
-      return res.status(400).json({ 
-        error: "Fout bij QLS order", 
-        details: qlsData.errors || qlsData 
-      });
-    }
-
-    console.log('QLS Response Status:', qlsResponse.status);
-    console.log('QLS Response Data:', JSON.stringify(qlsData, null, 2));
-
-    // 🔹 Klaviyo profiel aanmaken en toevoegen aan lijst
-    const klaviyoPayload = {
-      data: [
-        {
-          type: "profile",
-          attributes: {
-            first_name: name,
-            email: email,
-            phone_number: phone,
-            external_id: email,  // We gebruiken email als de unieke ID
-            first_name: name
-          }
-        }
-      ]
-    };
-
     console.log('Sending Klaviyo Profile request...');
     console.log('Klaviyo Payload:', JSON.stringify(klaviyoPayload, null, 2));
 
@@ -130,6 +75,59 @@ app.post('/api/sample', async (req, res) => {
 
     console.log('Klaviyo Response Status:', klaviyoResponse.status);
     console.log('Klaviyo Response Data:', JSON.stringify(klaviyoData, null, 2));
+
+    // Nu we een succesvol profiel hebben aangemaakt in Klaviyo, gaan we verder met de QLS aanvraag
+    // 🔹 QLS payload
+    const receiver = {
+      name,
+      companyname: "-",
+      street,
+      housenumber,
+      postalcode,
+      locality: city,
+      country: "NL",
+      email,
+      phone
+    };
+
+    const qlsPayload = {
+      reference: `FREE-${Date.now()}`,
+      customer_reference: "Gratis Sample Doosje",
+      brand_id: BRAND_ID,
+      status: "created",
+      receiver_contact: receiver,
+      products: [{ 
+        product_id: PRODUCT_ID, 
+        name: "GRATIS Sample Doosje", 
+        amount_ordered: 1 
+      }]
+    };
+
+    console.log('Sending QLS Order request...');
+    console.log('QLS Payload:', JSON.stringify(qlsPayload, null, 2));
+
+    // 1️⃣ QLS Order
+    const qlsResponse = await fetch(`https://api.pakketdienstqls.nl/companies/${COMPANY_ID}/fulfillment/orders`, {
+      method: "POST",
+      headers: { 
+        "Authorization": `Basic ${QLS_AUTH}`, 
+        "Content-Type": "application/json" 
+      },
+      body: JSON.stringify(qlsPayload)
+    });
+
+    const qlsData = await qlsResponse.json();
+
+    if (!qlsResponse.ok) {
+      console.error('QLS Response Error:', qlsData);
+      return res.status(400).json({ 
+        error: "Fout bij QLS order", 
+        details: qlsData.errors || qlsData 
+      });
+    }
+
+    console.log('QLS Response Status:', qlsResponse.status);
+    console.log('QLS Response Data:', JSON.stringify(qlsData, null, 2));
 
     // ✅ Succes
     res.status(200).json({
