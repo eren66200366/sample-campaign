@@ -3,24 +3,17 @@ import cors from 'cors';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 
-// Laad de environment variabelen uit .env bestand
+// Load environment variables
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// CORS configuratie
-const corsOptions = {
-  origin: '*', // Sta aanvragen van elk domein toe. Vervang dit met een specifieke URL voor beveiliging in productie.
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-// Gebruik CORS middleware
-app.use(cors(corsOptions));
-app.use(express.json()); // Om JSON-lichaam te kunnen parsen
-
-// Klaviyo en QLS variabelen uit .env bestand halen
+// QLS and Klaviyo credentials from environment variables
 const QLS_USERNAME = process.env.QLS_USERNAME;
 const QLS_PASSWORD = process.env.QLS_PASSWORD;
 const QLS_AUTH = Buffer.from(`${QLS_USERNAME}:${QLS_PASSWORD}`).toString("base64");
@@ -32,19 +25,19 @@ const PRODUCT_ID = process.env.PRODUCT_ID;
 const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
 const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
 
-// POST route voor het ontvangen van de aanvraag
+// POST route to handle sample request
 app.post('/api/sample', async (req, res) => {
   const { name, email, street, housenumber, postalcode, city, phone = '' } = req.body;
 
-  // 🔹 Klaviyo profiel aanmaken en toevoegen aan lijst
+  // 🔹 Klaviyo profile creation
   const klaviyoPayload = {
     data: {
-      type: "profile", // Correcte type
+      type: "profile",
       attributes: {
         first_name: name,
         email: email,
         phone_number: phone,
-        external_id: email, // Gebruik email als external_id
+        external_id: email // Using email as external_id
       }
     }
   };
@@ -63,12 +56,18 @@ app.post('/api/sample', async (req, res) => {
       body: JSON.stringify(klaviyoPayload)
     });
 
-    // Log de ruwe response voor debugging
+    // Log the raw response text
     const klaviyoResponseText = await klaviyoResponse.text();
     console.log("Raw Klaviyo Response Text:", klaviyoResponseText);
 
-    // Probeer de JSON te parsen
-    const klaviyoData = JSON.parse(klaviyoResponseText);
+    // If the response is not empty, parse it
+    let klaviyoData;
+    if (klaviyoResponseText) {
+      klaviyoData = JSON.parse(klaviyoResponseText);
+    } else {
+      console.error("Empty response from Klaviyo");
+      return res.status(400).json({ error: "Empty response from Klaviyo" });
+    }
 
     if (!klaviyoResponse.ok) {
       console.error('Klaviyo Response Error:', klaviyoData);
@@ -81,15 +80,15 @@ app.post('/api/sample', async (req, res) => {
     console.log('Klaviyo Response Status:', klaviyoResponse.status);
     console.log('Klaviyo Response Data:', JSON.stringify(klaviyoData, null, 2));
 
-    // Nu we een succesvol profiel hebben aangemaakt in Klaviyo, voegen we het toe aan de lijst
-    const profileId = klaviyoData.data.id; // Haal het profiel ID uit de response
+    // Now that we have a successful profile created in Klaviyo, add it to the list
+    const profileId = klaviyoData.data.id; // Get the profile ID from the response
 
-    // 🔹 Voeg het profiel toe aan de lijst
+    // 🔹 Add profile to Klaviyo list
     const klaviyoListPayload = {
       data: [
         {
           type: "profile",
-          id: profileId // Voeg het profiel ID toe aan de lijst
+          id: profileId // Add the profile ID to the list
         }
       ]
     };
@@ -104,15 +103,21 @@ app.post('/api/sample', async (req, res) => {
         "Content-Type": "application/json",
         "Revision": "2025-07-15"
       },
-      body: JSON.stringify({
-        data: [{
-          type: "profile",
-          id: profileId // Voeg het profiel ID toe aan de lijst
-        }]
-      })
+      body: JSON.stringify(klaviyoListPayload)
     });
 
-    const addToListData = await addToListResponse.json();
+    // Check the raw response and log it
+    const addToListResponseText = await addToListResponse.text();
+    console.log("Raw Add to List Response Text:", addToListResponseText);
+
+    // If the response is not empty, parse it
+    let addToListData;
+    if (addToListResponseText) {
+      addToListData = JSON.parse(addToListResponseText);
+    } else {
+      console.error("Empty response when adding profile to list");
+      return res.status(400).json({ error: "Empty response when adding profile to list" });
+    }
 
     if (!addToListResponse.ok) {
       console.error('Klaviyo List Add Error:', addToListData);
@@ -124,7 +129,7 @@ app.post('/api/sample', async (req, res) => {
 
     console.log('Profile successfully added to Klaviyo list:', addToListData);
 
-    // Nu kunnen we doorgaan met de QLS-order
+    // Proceed with QLS order
     const receiver = {
       name,
       companyname: "-",
