@@ -24,6 +24,7 @@ const PRODUCT_ID = process.env.PRODUCT_ID;
 // Klaviyo Configuratie
 const KLAVIYO_PRIVATE_KEY = process.env.KLAVIYO_PRIVATE_KEY;
 const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID;
+const KLAVIYO_REVISION = "2025-07-15";  // Dit is het vereiste datumformaat voor de REVISION header
 
 // POST route voor het verwerken van een aanvraag
 app.post('/api/sample', async (req, res) => {
@@ -99,7 +100,8 @@ app.post('/api/sample', async (req, res) => {
       method: "POST",
       headers: {
         "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Revision": KLAVIYO_REVISION  // Voeg de juiste REVISION header toe
       },
       body: JSON.stringify(klaviyoPayload)
     });
@@ -129,7 +131,8 @@ app.post('/api/sample', async (req, res) => {
       method: "POST",
       headers: {
         "Authorization": `Klaviyo-API-Key ${KLAVIYO_PRIVATE_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Revision": KLAVIYO_REVISION // Voeg de juiste REVISION header toe hier ook
       },
       body: JSON.stringify(klaviyoListPayload)
     });
